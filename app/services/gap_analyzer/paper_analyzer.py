@@ -225,8 +225,8 @@ class PaperAnalyzer:
         """Analyze paper text using Gemini AI to extract structured information"""
         
         if not self.model:
-            logger.warning("Gemini model not available, using fallback analysis")
-            return self._fallback_analysis(paper_text)
+            logger.error("Gemini model not available - analysis cannot proceed")
+            return None
         
         prompt = f"""
         You are an expert research analyst tasked with extracting comprehensive, structured information from academic papers. Your analysis will be used by an autonomous research frontier agent to identify genuine research gaps and avoid false positives.
@@ -338,11 +338,11 @@ class PaperAnalyzer:
                 if validated_analysis.get('future_work'):
                     logger.info(f"   First Future Work: {validated_analysis['future_work'][0][:100]}...")
                 
-                # If Gemini didn't find any gaps, force fallback to ensure we get gaps
+                # If Gemini didn't find any gaps, return None to indicate analysis failure
                 total_gaps = len(validated_analysis.get('limitations', [])) + len(validated_analysis.get('future_work', []))
                 if total_gaps == 0:
-                    logger.warning("⚠️ Gemini found 0 gaps, forcing fallback analysis to ensure gap discovery")
-                    return self._fallback_analysis(paper_text)
+                    logger.warning("⚠️ Gemini found 0 gaps - analysis may have failed")
+                    return None
                 
                 return validated_analysis
             except json.JSONDecodeError as json_error:
@@ -360,113 +360,15 @@ class PaperAnalyzer:
                     logger.info("JSON parsing succeeded after cleanup")
                     return self._validate_analysis(analysis)
                 except:
-                    logger.warning("JSON cleanup failed, using fallback analysis")
-                    return self._fallback_analysis(paper_text)
+                    logger.warning("JSON cleanup failed, analysis failed")
+                    return None
             
         except Exception as e:
             logger.error(f"Gemini analysis failed: {str(e)}")
             # Log the full error traceback to debug what's happening
             import traceback
             logger.error(f"Full traceback: {traceback.format_exc()}")
-            return self._fallback_analysis(paper_text)
-    
-    def _fallback_analysis(self, paper_text: str) -> Dict[str, Any]:
-        """Fallback analysis using simple text processing to extract real content"""
-        logger.warning("🚨 USING FALLBACK ANALYSIS - Gemini failed")
-        
-        # Extract title (first line or first significant text)
-        lines = paper_text.split('\n')
-        title = "Unknown Title"
-        for line in lines[:15]:
-            line = line.strip()
-            if len(line) > 15 and not line.isupper() and not line.startswith('arXiv:'):
-                title = line
-                break
-        
-        # Simple keyword-based extraction with better patterns
-        text_lower = paper_text.lower()
-        
-        # Extract limitations with comprehensive patterns
-        limitations = []
-        limitation_sections = []
-        
-        # Look for limitation sections
-        if "limitation" in text_lower:
-            limitation_text = text_lower.split("limitation")[1][:1000]
-            sentences = limitation_text.split('.')[:5]
-            for sentence in sentences:
-                if len(sentence.strip()) > 30:
-                    limitations.append(sentence.strip())
-        
-        # Look for conclusion/discussion sections for limitations
-        for section_name in ["conclusion", "discussion", "limitations", "challenges"]:
-            if section_name in text_lower:
-                section_text = text_lower.split(section_name)[1][:1500]
-                sentences = section_text.split('.')[:8]
-                for sentence in sentences:
-                    if any(word in sentence for word in ["however", "limitation", "challenge", "difficult", "unable", "cannot", "fail"]):
-                        if len(sentence.strip()) > 25:
-                            limitations.append(sentence.strip())
-        
-        # Extract future work
-        future_work = []
-        if "future work" in text_lower:
-            future_text = text_lower.split("future work")[1][:1000]
-            sentences = future_text.split('.')[:5]
-            for sentence in sentences:
-                if len(sentence.strip()) > 25:
-                    future_work.append(sentence.strip())
-        
-        # Look for conclusion sections for future work
-        if "conclusion" in text_lower:
-            conclusion_text = text_lower.split("conclusion")[1][:1500]
-            sentences = conclusion_text.split('.')[:8]
-            for sentence in sentences:
-                if any(word in sentence for word in ["future", "further", "next", "improve", "extend", "explore"]):
-                    if len(sentence.strip()) > 25:
-                        future_work.append(sentence.strip())
-        
-        # Clean up duplicates and filter
-        limitations = list(set([lim for lim in limitations if len(lim) > 30]))[:4]
-        future_work = list(set([fw for fw in future_work if len(fw) > 30]))[:4]
-        
-        # Generate MEANINGFUL fallback if nothing found - using real research gaps from phylogenetics
-        if not limitations and not future_work:
-            logger.warning("🚨 CRITICAL: No gaps found even in fallback - using real phylogenetic research gaps")
-            limitations = [
-                "Efficient terrace-aware data structures and algorithms for systematically navigating trees both inside a species tree terrace and its neighborhood need development",
-                "Identifying relatively accurate trees within large terraces using appropriate optimization criteria remains challenging when true trees are unknown for real biological datasets",
-                "Statistical guarantees of terrace-based support values remain to be determined and require formal analysis",
-                "Peak terraces may not frequently arise in real-world phylogenomic studies due to gene tree discordance, as all gene trees must be compatible for non-empty peak terraces",
-                "Current terrace detection and enumeration tools are limited and need extension to different optimality criteria beyond quartet scores",
-                "The computational complexity of enumerating all trees within large terraces becomes prohibitive for datasets with many taxa"
-            ]
-            future_work = [
-                "Develop efficient tools to identify species tree terraces and enumerate trees in them for different optimality criteria such as quartet score and extra lineage score",
-                "Investigate how to adapt summary methods and algorithms to leverage the existence of terraces for improved accuracy and scalability",
-                "Extend or relax the concept of peak terraces to accommodate gene tree discordance, making it more applicable to real phylogenomic datasets",
-                "Design terrace-aware consensus methods that can identify and utilize relatively accurate trees within terraces while avoiding less reliable ones",
-                "Establish theoretical foundations and statistical guarantees for terrace-based branch support estimation methods",
-                "Develop algorithms to find kernels of maximum size that maximize the sum of leaves remaining in gene trees under missing data patterns"
-            ]
-
-        logger.info(f"🔍 FALLBACK EXTRACTED: {len(limitations)} limitations, {len(future_work)} future work items")
-        if limitations:
-            logger.info(f"   First limitation: {limitations[0][:100]}...")
-        if future_work:
-            logger.info(f"   First future work: {future_work[0][:100]}...")
-
-        return {
-            "title": title,
-            "abstract": paper_text[:500] + "..." if len(paper_text) > 500 else paper_text,
-            "key_findings": ["Analysis completed"],
-            "methods": ["Research methodology applied"],
-            "limitations": limitations,
-            "future_work": future_work,
-            "year": None,
-            "authors": []
-        }
-    
+            return None
     
     def _validate_analysis(self, analysis: Dict[str, Any]) -> Dict[str, Any]:
         """Validate and clean the analysis results"""

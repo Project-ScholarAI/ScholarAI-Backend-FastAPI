@@ -70,20 +70,27 @@ class GapAnalysisBackgroundProcessor:
         """Load existing jobs from persistent storage on startup."""
         try:
             job_files = list(self.jobs_dir.glob("job_*.json"))
+            loaded_count = 0
+            
             for job_file in job_files:
                 try:
                     with open(job_file, 'r') as f:
                         job_data = json.load(f)
+                    
+                    # Validate required fields
+                    if "job_id" not in job_data or "request" not in job_data:
+                        logger.warning(f"Invalid job file {job_file}: missing required fields")
+                        continue
                     
                     # Recreate JobInfo object from saved data
                     job_id = job_data["job_id"]
                     request = GapAnalysisRequest(**job_data["request"])
                     job_info = JobInfo(job_id, request)
                     
-                    # Restore job state
-                    job_info.status = JobStatus(job_data["status"])
+                    # Restore job state with defaults
+                    job_info.status = JobStatus(job_data.get("status", "pending"))
                     job_info.created_at = datetime.fromisoformat(job_data["created_at"])
-                    job_info.progress_message = job_data["progress_message"]
+                    job_info.progress_message = job_data.get("progress_message", "Job loaded from storage")
                     job_info.result_file = job_data.get("result_file")
                     
                     if job_data.get("started_at"):
@@ -93,16 +100,34 @@ class GapAnalysisBackgroundProcessor:
                     if job_data.get("error_message"):
                         job_info.error_message = job_data["error_message"]
                     
+                    # If job was running when server stopped, mark it as failed
+                    if job_info.status == JobStatus.RUNNING:
+                        job_info.status = JobStatus.FAILED
+                        job_info.error_message = "Job interrupted by server restart"
+                        job_info.progress_message = "Job failed due to server restart"
+                        self._save_job_status(job_id)
+                    
                     self.jobs[job_id] = job_info
-                    logger.info(f"Loaded existing job {job_id} from persistent storage")
+                    loaded_count += 1
+                    logger.info(f"✅ Loaded job {job_id} with status: {job_info.status.value}")
                     
                 except Exception as e:
-                    logger.error(f"Failed to load job from {job_file}: {str(e)}")
+                    logger.error(f"❌ Failed to load job from {job_file}: {str(e)}")
                     
-            logger.info(f"Loaded {len(self.jobs)} existing jobs from persistent storage")
+            logger.info(f"🔄 Successfully loaded {loaded_count} jobs from persistent storage")
+            
+            # Log summary by status
+            status_counts = {}
+            for job in self.jobs.values():
+                status = job.status.value
+                status_counts[status] = status_counts.get(status, 0) + 1
+            
+            if status_counts:
+                status_summary = ", ".join([f"{status}: {count}" for status, count in status_counts.items()])
+                logger.info(f"📊 Job status summary: {status_summary}")
             
         except Exception as e:
-            logger.error(f"Failed to load existing jobs: {str(e)}")
+            logger.error(f"💥 Failed to load existing jobs: {str(e)}")
 
     def _save_job_status(self, job_id: str):
         """Save job status to persistent storage."""
@@ -316,7 +341,8 @@ class GapAnalysisBackgroundProcessor:
             job.status = JobStatus.COMPLETED
             job.completed_at = datetime.utcnow()
             job.result_file = result_filename
-            job.progress_message = f"Analysis completed! Found {len(result.validated_gaps)} validated research gaps."
+            gap_count = len(result.validated_gaps) if result.validated_gaps else 0
+            job.progress_message = f"Analysis completed! Found {gap_count} validated research gaps."
             
             # Save final status to persistent storage
             self._save_job_status(job_id)

@@ -21,6 +21,7 @@ class GapAnalysisSubmissionRequest(BaseModel):
     url: HttpUrl
     max_papers: Optional[int] = 10
     validation_threshold: Optional[int] = 2
+    analysis_mode: Optional[str] = "deep"  # "light" or "deep"
 
 class GapAnalysisSubmissionResponse(BaseModel):
     """Response when submitting gap analysis"""
@@ -64,14 +65,27 @@ async def submit_gap_analysis(request: GapAnalysisSubmissionRequest):
         gap_request = GapAnalysisRequest(
             url=str(request.url),
             max_papers=request.max_papers or 10,
-            validation_threshold=request.validation_threshold or 2
+            validation_threshold=request.validation_threshold or 2,
+            analysis_mode=request.analysis_mode or "deep"
         )
         
         # Submit job for background processing
         job_id = await background_processor.submit_job(gap_request)
         
-        # Estimate processing time based on parameters
-        estimated_minutes = max(3, (gap_request.max_papers * 0.8) + 2)
+        # Estimate processing time based on analysis mode and parameters
+        if gap_request.analysis_mode == "light":
+            # Light analysis: 2-3 minutes
+            base_time = 2.5
+            paper_multiplier = 0.1  # Much faster per paper
+        else:
+            # Deep analysis: 10-15 minutes
+            base_time = 10
+            paper_multiplier = 0.8  # Original timing
+            
+        estimated_minutes = max(
+            2 if gap_request.analysis_mode == "light" else 8, 
+            base_time + (gap_request.max_papers * paper_multiplier)
+        )
         
         logger.info(f"🎯 Gap analysis job {job_id} submitted for {request.url}")
         

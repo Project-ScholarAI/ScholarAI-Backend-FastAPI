@@ -94,7 +94,7 @@ class GapAnalysisOrchestrator:
         request_id = str(uuid4())[:8]
         start_time = time.time()
         
-        logger.info(f"Starting gap analysis {request_id} for paper: {request.url}")
+        logger.info(f"Starting {request.analysis_mode} gap analysis {request_id} for paper: {request.url}")
         
         try:
             # Phase 1: Seeding the Exploration
@@ -103,13 +103,25 @@ class GapAnalysisOrchestrator:
             if not seed_analysis:
                 raise Exception("Failed to analyze seed paper")
             
+            # Adjust parameters based on analysis mode
+            if request.analysis_mode == "light":
+                # Light mode: reduce scope for faster processing
+                max_papers = min(request.max_papers, 5)  # Cap at 5 papers
+                validation_threshold = 1  # Minimal validation
+                logger.info(f"🚀 Light analysis mode: {max_papers} papers, minimal validation")
+            else:
+                # Deep mode: use full parameters
+                max_papers = request.max_papers
+                validation_threshold = request.validation_threshold
+                logger.info(f"🔬 Deep analysis mode: {max_papers} papers, thorough validation")
+            
             # Phase 2: Main Exploration Loop
             logger.info("Phase 2: Main exploration loop...")
-            await self._phase_2_expanding_frontier(request.max_papers)
+            await self._phase_2_expanding_frontier(max_papers)
             
             # Phase 3: Gap Validation Loop
             logger.info("Phase 3: Gap validation loop...")
-            await self._phase_3_final_validation(request.validation_threshold)
+            await self._phase_3_final_validation(validation_threshold)
             
             # Phase 4: Final Response Synthesis
             logger.info("Phase 4: Final response synthesis...")

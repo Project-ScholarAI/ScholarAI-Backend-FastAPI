@@ -27,6 +27,10 @@ class Settings:
     # Environment
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "info")
+    
+    # Gap Analysis Configuration
+    GAP_ANALYSIS_LIGHT_MODE_MAX_PAPERS: int = int(os.getenv("GAP_ANALYSIS_LIGHT_MODE_MAX_PAPERS", "5"))
+    GAP_ANALYSIS_LIGHT_MODE_VALIDATION_THRESHOLD: int = int(os.getenv("GAP_ANALYSIS_LIGHT_MODE_VALIDATION_THRESHOLD", "1"))
 
 
 settings = Settings()

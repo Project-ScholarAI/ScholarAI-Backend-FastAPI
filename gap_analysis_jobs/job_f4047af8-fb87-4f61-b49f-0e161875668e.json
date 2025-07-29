@@ -1,0 +1,13 @@
+{
+  "job_id": "f4047af8-fb87-4f61-b49f-0e161875668e",
+  "request": {
+    "url": "https://f003.backblazeb2.com/b2api/v3/b2_download_file_by_id?fileId=4_z64a715e19e4932e197750a19_f1198e66444aae2c6_d20250725_m041231_c003_v0312029_t0030_u01753416751392",
+    "max_papers": 6,
+    "validation_threshold": 1
+  },
+  "status": "running",
+  "created_at": "2025-07-27T19:14:19.866340",
+  "progress_message": "Phase 2: Discovering research gaps and expanding frontier...",
+  "result_file": null,
+  "started_at": "2025-07-27T19:14:19.866982"
+}
